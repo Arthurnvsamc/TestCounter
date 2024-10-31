@@ -1,156 +1,100 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Flexões com PoseNet</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #eef2f3;
-            color: #333;
-            text-align: center;
-        }
-        h1 {
-            margin-bottom: 20px;
-            color: #007BFF;
-        }
-        #counter {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-top: 20px;
-            color: #28a745;
-        }
-        #message, #status {
-            font-size: 1.2rem;
-            margin-top: 10px;
-        }
-        #message {
-            color: #dc3545;
-        }
-        #status {
-            color: #ffc107;
-        }
-        #footer {
-            margin-top: 20px;
-            font-size: 0.8rem;
-            color: #666;
-        }
-    </style>
-    <!-- TensorFlow.js e PoseNet -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+  <meta charset="UTF-8">
+  <title>Controle de Brilho do LED com a Mão</title>
 </head>
 <body>
-    <h1>Contador de Flexões</h1>
-    <div id="counter">Flexões: 0</div>
-    <div id="message">Coloque o celular deitado no chão com a tela para cima.</div>
-    <div id="status">Aguardando detecção...</div>
-    <div id="footer">Desenvolvido com TensorFlow.js e PoseNet</div>
+  <h2>Controle o Brilho do LED</h2>
+  <video id="video" width="640" height="480" autoplay></video>
+  <canvas id="output" width="640" height="480"></canvas>
 
-    <script>
-        const video = document.createElement('video');
-        const counterDisplay = document.getElementById('counter');
-        const messageDisplay = document.getElementById('message');
-        const statusDisplay = document.getElementById('status');
-        let count = 0;
-        let isDownPosition = false;
-        let isHorizontal = false;
-        let faceDetected = false;
+  <!-- TensorFlow.js e PoseNet -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
+  <!-- Serial para comunicação com Arduino -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/serialport/9.2.8/serialport.min.js"></script>
 
-        // Função para verificar se o celular está deitado
-        function handleOrientation(event) {
-            const beta = event.beta; // Inclinação do dispositivo
-            isHorizontal = beta > -10 && beta < 10; // Condição para deitado
-            messageDisplay.textContent = isHorizontal ? "Posição OK. Detectando rosto..." : "Coloque o celular deitado.";
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('output');
+    const ctx = canvas.getContext('2d');
+    let serialPort;
+
+    // Configuração para o serial
+    async function openSerial() {
+      if ("serial" in navigator) {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        serialPort = port.writable.getWriter();
+      } else {
+        alert("Serial não suportado no seu navegador.");
+      }
+    }
+
+    // Configurar câmera
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      return new Promise(resolve => {
+        video.onloadedmetadata = () => resolve(video);
+      });
+    }
+
+    // Carregar PoseNet
+    async function loadPosenet() {
+      return await posenet.load();
+    }
+
+    // Função para enviar brilho ao Arduino
+    async function sendBrightness(value) {
+      if (serialPort) {
+        const brightness = new Uint8Array([value]);
+        await serialPort.write(brightness);
+      }
+    }
+
+    // Detectar pose e ajustar brilho
+    async function detectPose(net) {
+      const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPose(pose);
+
+      // Detecta mão aberta/fechada e altura
+      const leftWrist = pose.keypoints.find(point => point.part === 'leftWrist');
+      const rightWrist = pose.keypoints.find(point => point.part === 'rightWrist');
+      const leftHand = pose.keypoints.find(point => point.part === 'leftHand'); // Apenas como exemplo, substitua conforme sua lógica
+      const isHandOpen = leftHand && leftHand.score > 0.5; // Defina a lógica para detectar mão aberta
+      if (leftWrist && leftWrist.score > 0.5 && isHandOpen) {
+        let brightness = Math.max(0, Math.min(255, 480 - leftWrist.position.y)); // Calcula brilho
+        await sendBrightness(brightness);
+      } else {
+        await sendBrightness(0); // Mão fechada: brilho zero
+      }
+
+      requestAnimationFrame(() => detectPose(net));
+    }
+
+    function drawPose(pose) {
+      pose.keypoints.forEach(keypoint => {
+        if (keypoint.score > 0.5) {
+          const { y, x } = keypoint.position;
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = "red";
+          ctx.fill();
         }
+      });
+    }
 
-        async function setupCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: "user",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                }
-            });
-            video.srcObject = stream;
-            video.play();
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resolve(video);
-                };
-            });
-        }
+    async function main() {
+      await setupCamera();
+      const net = await loadPosenet();
+      await openSerial();
+      detectPose(net);
+    }
 
-        async function loadPosenet() {
-            return await posenet.load({
-                architecture: 'ResNet50',
-                outputStride: 16,
-                inputResolution: { width: 640, height: 480 },
-                multiplier: 1.0
-            });
-        }
-
-        let lastPoseTime = 0;
-        const poseInterval = 100;
-
-        function detectPoseInRealTime(video, net) {
-            async function poseDetectionFrame() {
-                const currentTime = Date.now();
-
-                if (isHorizontal && currentTime - lastPoseTime > poseInterval) {
-                    lastPoseTime = currentTime;
-                    const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
-
-                    // Obter pontos relevantes: nariz, ombros e quadris
-                    const nose = pose.keypoints.find(k => k.part === 'nose');
-                    const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
-                    const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
-
-                    // Verifica se o nariz e os ombros estão detectados com precisão
-                    if (nose && nose.score > 0.8 && leftShoulder && leftShoulder.score > 0.8 && rightShoulder && rightShoulder.score > 0.8) {
-                        faceDetected = true;
-                        statusDisplay.textContent = "Rosto detectado. Pronto para contar flexões.";
-                        statusDisplay.style.color = "#28a745";
-
-                        const noseY = nose.position.y;
-                        const shouldersY = (leftShoulder.position.y + rightShoulder.position.y) / 2;
-
-                        // Detecção de movimento de flexão
-                        if (noseY > shouldersY + 30 && !isDownPosition) { // Cabeça abaixada
-                            isDownPosition = true;
-                        } else if (isDownPosition && noseY < shouldersY) { // Cabeça levantada
-                            count++;
-                            counterDisplay.textContent = `Flexões: ${count}`;
-                            isDownPosition = false;
-                        }
-                    } else {
-                        faceDetected = false;
-                        statusDisplay.textContent = "Rosto não detectado. Ajuste a posição.";
-                        statusDisplay.style.color = "#dc3545";
-                    }
-                }
-
-                requestAnimationFrame(poseDetectionFrame);
-            }
-
-            poseDetectionFrame();
-        }
-
-        async function main() {
-            await setupCamera();
-            const net = await loadPosenet();
-            detectPoseInRealTime(video, net);
-        }
-
-        window.addEventListener('deviceorientation', handleOrientation);
-        main();
-    </script>
+    main();
+  </script>
 </body>
 </html>
