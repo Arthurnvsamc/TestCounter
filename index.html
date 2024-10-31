@@ -49,7 +49,10 @@
 
         async function setupCamera() {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user" } // Usa a câmera frontal
+                video: { facingMode: "user",
+        width: { ideal: 320 },
+        height: { ideal: 240 }
+    } // Usa a câmera frontal
             });
             video.srcObject = stream;
 
@@ -61,8 +64,14 @@
         }
 
         async function loadPosenet() {
-            return await posenet.load();
-        }
+    return await posenet.load({
+        architecture: 'MobileNetV1',
+        outputStride: 16, // Um número menor melhora a precisão, mas números maiores aumentam a velocidade
+        inputResolution: { width: 320, height: 240 },
+        multiplier: 0.5 // Quanto menor, mais rápido, mas menos preciso
+    });
+}
+
 
         function detectPoseInRealTime(video, net) {
             const canvasWidth = 400;
