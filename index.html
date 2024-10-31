@@ -41,28 +41,33 @@
         let isClose = false;
 
         // Verifica se o navegador suporta o sensor de proximidade
-        if ('ondeviceproximity' in window) {
-            window.addEventListener('deviceproximity', event => {
-                if (event.near && !isClose) {
-                    isClose = true;
-                } else if (!event.near && isClose) {
-                    isClose = false;
-                    count++;
-                    document.getElementById('counter').textContent = count;
-                }
-            });
-        } else if ('onuserproximity' in window) {
-            window.addEventListener('userproximity', event => {
-                if (event.near && !isClose) {
-                    isClose = true;
-                } else if (!event.near && isClose) {
-                    isClose = false;
-                    count++;
-                    document.getElementById('counter').textContent = count;
-                }
-            });
+        if ('ProximitySensor' in window) {
+            try {
+                // Inicializa o sensor de proximidade
+                const sensor = new ProximitySensor();
+
+                sensor.addEventListener('reading', () => {
+                    if (sensor.distance < 5 && !isClose) { // Distância em centímetros
+                        isClose = true;
+                    } else if (sensor.distance >= 5 && isClose) {
+                        isClose = false;
+                        count++;
+                        document.getElementById('counter').textContent = count;
+                    }
+                });
+
+                sensor.addEventListener('error', event => {
+                    console.error('Erro no sensor de proximidade:', event.error.name, event.error.message);
+                    alert("Erro ao acessar o sensor de proximidade.");
+                });
+
+                sensor.start(); // Inicia a leitura do sensor
+            } catch (error) {
+                console.error('Falha ao inicializar o sensor de proximidade:', error);
+                alert("Seu dispositivo não suporta o sensor de proximidade ou permissões não foram concedidas.");
+            }
         } else {
-            alert("Seu dispositivo ou navegador não suporta o sensor de proximidade.");
+            alert("Seu navegador não suporta o sensor de proximidade.");
         }
     </script>
 </body>
