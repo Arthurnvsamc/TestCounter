@@ -6,31 +6,44 @@
     <title>Contador de Flexões com PoseNet</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #f3f3f3;
+            background-color: #eef2f3;
             color: #333;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #007BFF;
         }
         video, canvas {
             max-width: 400px;
             width: 100%;
-            border: 2px solid #333;
-            border-radius: 8px;
+            border: 2px solid #007BFF;
+            border-radius: 10px;
             margin-top: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
         #counter {
             font-size: 2rem;
             font-weight: bold;
             margin-top: 20px;
+            color: #28a745;
         }
         #message {
-            color: red;
+            color: #dc3545;
             font-size: 1.2rem;
+            margin-top: 10px;
+        }
+        #footer {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #666;
         }
     </style>
     <!-- TensorFlow.js e PoseNet -->
@@ -38,11 +51,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
 </head>
 <body>
-    <h1>Contador de Flexões com PoseNet</h1>
+    <h1>Contador de Flexões</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="output"></canvas>
     <div id="counter">Flexões: 0</div>
     <div id="message">Coloque o celular deitado no chão com a tela para cima.</div>
+    <div id="footer">Desenvolvido com TensorFlow.js e PoseNet</div>
 
     <script>
         const video = document.getElementById('video');
@@ -57,7 +71,7 @@
         // Função para verificar se o celular está deitado
         function handleOrientation(event) {
             const beta = event.beta; // Inclinação do dispositivo
-            isHorizontal = beta > 80 && beta < 100; // Condição para deitado
+            isHorizontal = beta > -10 && beta < 10; // Condição para deitado
         }
 
         async function setupCamera() {
@@ -81,13 +95,13 @@
             return await posenet.load({
                 architecture: 'MobileNetV1',
                 outputStride: 16,
-                inputResolution: { width: 160, height: 120 }, // Reduzindo a resolução para aumentar a velocidade
+                inputResolution: { width: 160, height: 120 },
                 multiplier: 0.5
             });
         }
 
         function detectPoseInRealTime(video, net) {
-            const canvasWidth = 160; // Resolução reduzida
+            const canvasWidth = 160;
             const canvasHeight = 120;
             video.width = canvasWidth;
             video.height = canvasHeight;
@@ -95,13 +109,12 @@
             canvas.height = canvasHeight;
 
             async function poseDetectionFrame() {
-                if (isHorizontal) { // Verifica se o celular está deitado
+                if (isHorizontal) {
                     const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
 
                     context.clearRect(0, 0, canvasWidth, canvasHeight);
                     context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
 
-                    // Verifica se o nariz está detectado e faz a contagem
                     const nose = pose.keypoints.find(k => k.part === 'nose');
                     if (nose && nose.score > 0.6) {
                         const noseY = nose.position.y;
@@ -115,7 +128,7 @@
                             isDownPosition = false;
                         }
 
-                        // Desenha o ponto do nariz para feedback visual
+                        // Desenha o ponto do nariz
                         context.beginPath();
                         context.arc(nose.position.x, nose.position.y, 5, 0, 2 * Math.PI);
                         context.fillStyle = "aqua";
@@ -123,7 +136,7 @@
                     }
                 }
 
-                requestAnimationFrame(poseDetectionFrame); // Usar requestAnimationFrame para eficiência
+                requestAnimationFrame(poseDetectionFrame);
             }
 
             poseDetectionFrame();
@@ -135,7 +148,6 @@
             detectPoseInRealTime(video, net);
         }
 
-        // Evento para monitorar a orientação do dispositivo
         window.addEventListener('deviceorientation', handleOrientation);
         main();
     </script>
