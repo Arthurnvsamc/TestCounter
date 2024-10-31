@@ -59,7 +59,7 @@
             const beta = event.beta; // Inclinação do dispositivo
 
             // Considera que o celular está deitado se a inclinação beta for próxima de 90 graus
-            isHorizontal = beta > 80 && beta < 100;
+            isHorizontal = beta > -10 && beta < 10 ;
         }
 
         async function setupCamera() {
