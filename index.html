@@ -21,14 +21,6 @@
             margin-bottom: 20px;
             color: #007BFF;
         }
-        video, canvas {
-            max-width: 400px;
-            width: 100%;
-            border: 2px solid #007BFF;
-            border-radius: 10px;
-            margin-top: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
         #counter {
             font-size: 2rem;
             font-weight: bold;
@@ -52,18 +44,13 @@
 </head>
 <body>
     <h1>Contador de Flexões</h1>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="output"></canvas>
     <div id="counter">Flexões: 0</div>
     <div id="message">Coloque o celular deitado no chão com a tela para cima.</div>
     <div id="footer">Desenvolvido com TensorFlow.js e PoseNet</div>
 
     <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('output');
-        const context = canvas.getContext('2d');
+        const video = document.createElement('video');
         const counterDisplay = document.getElementById('counter');
-        const messageDisplay = document.getElementById('message');
         let count = 0;
         let isDownPosition = false;
         let isHorizontal = false;
@@ -100,39 +87,35 @@
             });
         }
 
-        function detectPoseInRealTime(video, net) {
-            const canvasWidth = 160;
-            const canvasHeight = 120;
-            video.width = canvasWidth;
-            video.height = canvasHeight;
-            canvas.width = canvasWidth;
-            canvas.height = canvasHeight;
+        let lastPoseTime = 0; // Tempo da última detecção
+        const poseInterval = 100; // Intervalo de detecção em ms
 
+        function detectPoseInRealTime(video, net) {
             async function poseDetectionFrame() {
-                if (isHorizontal) {
+                const currentTime = Date.now();
+
+                if (isHorizontal && currentTime - lastPoseTime > poseInterval) {
+                    lastPoseTime = currentTime;
                     const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
 
-                    context.clearRect(0, 0, canvasWidth, canvasHeight);
-                    context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-
+                    // Obter pontos relevantes: nariz, ombros e quadris
                     const nose = pose.keypoints.find(k => k.part === 'nose');
-                    if (nose && nose.score > 0.6) {
+                    const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
+                    const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
+
+                    // Verifica se o nariz e os ombros estão detectados
+                    if (nose && nose.score > 0.6 && leftShoulder && leftShoulder.score > 0.6 && rightShoulder && rightShoulder.score > 0.6) {
                         const noseY = nose.position.y;
+                        const shouldersY = (leftShoulder.position.y + rightShoulder.position.y) / 2;
 
                         // Detecção de movimento de flexão
-                        if (noseY > canvasHeight * 0.6 && !isDownPosition) { // Cabeça abaixada
+                        if (noseY > shouldersY + 30 && !isDownPosition) { // Cabeça abaixada
                             isDownPosition = true;
-                        } else if (isDownPosition && noseY < canvasHeight * 0.5) { // Cabeça levantada
+                        } else if (isDownPosition && noseY < shouldersY) { // Cabeça levantada
                             count++;
                             counterDisplay.textContent = `Flexões: ${count}`;
                             isDownPosition = false;
                         }
-
-                        // Desenha o ponto do nariz
-                        context.beginPath();
-                        context.arc(nose.position.x, nose.position.y, 5, 0, 2 * Math.PI);
-                        context.fillStyle = "aqua";
-                        context.fill();
                     }
                 }
 
