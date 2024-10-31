@@ -27,10 +27,15 @@
             margin-top: 20px;
             color: #28a745;
         }
-        #message {
-            color: #dc3545;
+        #message, #status {
             font-size: 1.2rem;
             margin-top: 10px;
+        }
+        #message {
+            color: #dc3545;
+        }
+        #status {
+            color: #ffc107;
         }
         #footer {
             margin-top: 20px;
@@ -46,19 +51,24 @@
     <h1>Contador de Flexões</h1>
     <div id="counter">Flexões: 0</div>
     <div id="message">Coloque o celular deitado no chão com a tela para cima.</div>
+    <div id="status">Aguardando detecção...</div>
     <div id="footer">Desenvolvido com TensorFlow.js e PoseNet</div>
 
     <script>
         const video = document.createElement('video');
         const counterDisplay = document.getElementById('counter');
+        const messageDisplay = document.getElementById('message');
+        const statusDisplay = document.getElementById('status');
         let count = 0;
         let isDownPosition = false;
         let isHorizontal = false;
+        let faceDetected = false;
 
         // Função para verificar se o celular está deitado
         function handleOrientation(event) {
             const beta = event.beta; // Inclinação do dispositivo
             isHorizontal = beta > -10 && beta < 10; // Condição para deitado
+            messageDisplay.textContent = isHorizontal ? "Posição OK. Detectando rosto..." : "Coloque o celular deitado.";
         }
 
         async function setupCamera() {
@@ -81,14 +91,14 @@
         async function loadPosenet() {
             return await posenet.load({
                 architecture: 'MobileNetV1',
-                outputStride: 16,
-                inputResolution: { width: 160, height: 120 },
-                multiplier: 0.5
+                outputStride: 8, // Aumentando a precisão
+                inputResolution: { width: 320, height: 240 },
+                multiplier: 0.75
             });
         }
 
-        let lastPoseTime = 0; // Tempo da última detecção
-        const poseInterval = 100; // Intervalo de detecção em ms
+        let lastPoseTime = 0;
+        const poseInterval = 100;
 
         function detectPoseInRealTime(video, net) {
             async function poseDetectionFrame() {
@@ -104,7 +114,11 @@
                     const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
 
                     // Verifica se o nariz e os ombros estão detectados
-                    if (nose && nose.score > 0.6 && leftShoulder && leftShoulder.score > 0.6 && rightShoulder && rightShoulder.score > 0.6) {
+                    if (nose && nose.score > 0.7 && leftShoulder && leftShoulder.score > 0.7 && rightShoulder && rightShoulder.score > 0.7) {
+                        faceDetected = true;
+                        statusDisplay.textContent = "Rosto detectado. Pronto para contar flexões.";
+                        statusDisplay.style.color = "#28a745";
+
                         const noseY = nose.position.y;
                         const shouldersY = (leftShoulder.position.y + rightShoulder.position.y) / 2;
 
@@ -116,6 +130,10 @@
                             counterDisplay.textContent = `Flexões: ${count}`;
                             isDownPosition = false;
                         }
+                    } else {
+                        faceDetected = false;
+                        statusDisplay.textContent = "Rosto não detectado. Ajuste a posição.";
+                        statusDisplay.style.color = "#dc3545";
                     }
                 }
 
