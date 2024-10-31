@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Flexões com Câmera Frontal</title>
+    <title>Contador de Flexões com Movimento da Cabeça</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -34,7 +34,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
 </head>
 <body>
-    <h1>Contador de Flexões</h1>
+    <h1>Contador de Flexões com a Cabeça</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="output"></canvas>
     <div id="counter">Flexões: 0</div>
@@ -90,20 +90,16 @@
                     }
                 });
 
-                // Detecta posição de flexão usando ombros e quadris
-                const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
-                const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
-                const leftHip = pose.keypoints.find(k => k.part === 'leftHip');
-                const rightHip = pose.keypoints.find(k => k.part === 'rightHip');
+                // Detecta posição de flexão usando a posição do nariz
+                const nose = pose.keypoints.find(k => k.part === 'nose');
 
-                if (leftShoulder && rightShoulder && leftHip && rightHip) {
-                    const avgShoulderY = (leftShoulder.position.y + rightShoulder.position.y) / 2;
-                    const avgHipY = (leftHip.position.y + rightHip.position.y) / 2;
+                if (nose && nose.score > 0.6) {
+                    const noseY = nose.position.y;
 
-                    // Detecta movimento de flexão
-                    if (avgShoulderY > avgHipY + 50) { // Posição para baixo
+                    // Detecta movimento de flexão para baixo e depois para cima
+                    if (noseY > canvasHeight * 0.6 && !isDownPosition) { // Cabeça abaixada
                         isDownPosition = true;
-                    } else if (isDownPosition && avgShoulderY < avgHipY + 30) { // Retorno à posição para cima
+                    } else if (isDownPosition && noseY < canvasHeight * 0.5) { // Cabeça levantada
                         count++;
                         counterDisplay.textContent = `Flexões: ${count}`;
                         isDownPosition = false;
