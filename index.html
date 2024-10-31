@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Flexões com Movimento da Cabeça</title>
+    <title>Contador de Flexões com Verificação de Posição</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -28,31 +28,39 @@
             font-weight: bold;
             margin-top: 20px;
         }
+        #status {
+            font-size: 1.2rem;
+            color: red;
+        }
     </style>
     <!-- TensorFlow.js e PoseNet -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
 </head>
 <body>
-    <h1>Contador de Flexões com a Cabeça</h1>
+    <h1>Contador de Flexões com Verificação de Posição</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="output"></canvas>
     <div id="counter">Flexões: 0</div>
+    <div id="status">Posicione o celular deitado para começar</div>
 
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('output');
         const context = canvas.getContext('2d');
         const counterDisplay = document.getElementById('counter');
+        const statusDisplay = document.getElementById('status');
         let count = 0;
         let isDownPosition = false;
+        let isHorizontal = false; // Para verificar se o celular está na posição horizontal
 
         async function setupCamera() {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user",
-        width: { ideal: 320 },
-        height: { ideal: 240 }
-    } // Usa a câmera frontal
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 320 },
+                    height: { ideal: 240 }
+                }
             });
             video.srcObject = stream;
 
@@ -64,32 +72,33 @@
         }
 
         async function loadPosenet() {
-    return await posenet.load({
-        architecture: 'MobileNetV1',
-        outputStride: 16, // Um número menor melhora a precisão, mas números maiores aumentam a velocidade
-        inputResolution: { width: 320, height: 240 },
-        multiplier: 0.5 // Quanto menor, mais rápido, mas menos preciso
-    });
-}
-
+            return await posenet.load({
+                architecture: 'MobileNetV1',
+                outputStride: 16,
+                inputResolution: { width: 320, height: 240 },
+                multiplier: 0.5
+            });
+        }
 
         function detectPoseInRealTime(video, net) {
-            const canvasWidth = 400;
-            const canvasHeight = 300;
+            const canvasWidth = 320;
+            const canvasHeight = 240;
             video.width = canvasWidth;
             video.height = canvasHeight;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
 
             async function poseDetectionFrame() {
-                const pose = await net.estimateSinglePose(video, {
-                    flipHorizontal: true
-                });
+                if (!isHorizontal) {
+                    requestAnimationFrame(poseDetectionFrame); // Se não estiver horizontal, não faz detecção
+                    return;
+                }
+
+                const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
 
                 context.clearRect(0, 0, canvasWidth, canvasHeight);
                 context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
 
-                // Desenha os pontos detectados
                 pose.keypoints.forEach(keypoint => {
                     if (keypoint.score > 0.6) {
                         context.beginPath();
@@ -99,27 +108,40 @@
                     }
                 });
 
-                // Detecta posição de flexão usando a posição do nariz
                 const nose = pose.keypoints.find(k => k.part === 'nose');
-
                 if (nose && nose.score > 0.6) {
                     const noseY = nose.position.y;
 
-                    // Detecta movimento de flexão para baixo e depois para cima
-                    if (noseY > canvasHeight * 0.6 && !isDownPosition) { // Cabeça abaixada
+                    if (noseY > canvasHeight * 0.6 && !isDownPosition) {
                         isDownPosition = true;
-                    } else if (isDownPosition && noseY < canvasHeight * 0.5) { // Cabeça levantada
+                    } else if (isDownPosition && noseY < canvasHeight * 0.5) {
                         count++;
                         counterDisplay.textContent = `Flexões: ${count}`;
                         isDownPosition = false;
                     }
                 }
 
-                requestAnimationFrame(poseDetectionFrame);
+                setTimeout(() => {
+                    requestAnimationFrame(poseDetectionFrame);
+                }, 100); 
             }
 
             poseDetectionFrame();
         }
+
+        // Verificação da posição do celular usando DeviceOrientationEvent
+        window.addEventListener("deviceorientation", (event) => {
+            const beta = event.beta; // Inclinacao em relação ao eixo Y
+            if (beta > 60 && beta < 120) {
+                isHorizontal = true;
+                statusDisplay.textContent = "Contagem iniciada!";
+                statusDisplay.style.color = "green";
+            } else {
+                isHorizontal = false;
+                statusDisplay.textContent = "Posicione o celular deitado para começar";
+                statusDisplay.style.color = "red";
+            }
+        });
 
         async function main() {
             await setupCamera();
