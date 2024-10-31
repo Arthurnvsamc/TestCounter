@@ -75,12 +75,12 @@
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "user",
-                    width: { ideal: 320 },
-                    height: { ideal: 240 }
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
                 }
             });
             video.srcObject = stream;
-
+            video.play();
             return new Promise((resolve) => {
                 video.onloadedmetadata = () => {
                     resolve(video);
@@ -90,10 +90,10 @@
 
         async function loadPosenet() {
             return await posenet.load({
-                architecture: 'MobileNetV1',
-                outputStride: 8, // Aumentando a precisão
-                inputResolution: { width: 320, height: 240 },
-                multiplier: 0.75
+                architecture: 'ResNet50',
+                outputStride: 16,
+                inputResolution: { width: 640, height: 480 },
+                multiplier: 1.0
             });
         }
 
@@ -113,8 +113,8 @@
                     const leftShoulder = pose.keypoints.find(k => k.part === 'leftShoulder');
                     const rightShoulder = pose.keypoints.find(k => k.part === 'rightShoulder');
 
-                    // Verifica se o nariz e os ombros estão detectados
-                    if (nose && nose.score > 0.7 && leftShoulder && leftShoulder.score > 0.7 && rightShoulder && rightShoulder.score > 0.7) {
+                    // Verifica se o nariz e os ombros estão detectados com precisão
+                    if (nose && nose.score > 0.8 && leftShoulder && leftShoulder.score > 0.8 && rightShoulder && rightShoulder.score > 0.8) {
                         faceDetected = true;
                         statusDisplay.textContent = "Rosto detectado. Pronto para contar flexões.";
                         statusDisplay.style.color = "#28a745";
