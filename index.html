@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador de Flexões com Sensor de Proximidade</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f3f3f3;
+            color: #333;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        #counter {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .instructions {
+            font-size: 1rem;
+            margin-top: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Contador de Flexões</h1>
+    <div id="counter">0</div>
+    <div class="instructions">Aproxime-se e afaste-se do sensor de proximidade para contar uma flexão.</div>
+
+    <script>
+        let count = 0;
+        let isClose = false;
+
+        // Verifica se o navegador suporta o sensor de proximidade
+        if ('ondeviceproximity' in window) {
+            window.addEventListener('deviceproximity', event => {
+                if (event.near && !isClose) {
+                    isClose = true;
+                } else if (!event.near && isClose) {
+                    isClose = false;
+                    count++;
+                    document.getElementById('counter').textContent = count;
+                }
+            });
+        } else if ('onuserproximity' in window) {
+            window.addEventListener('userproximity', event => {
+                if (event.near && !isClose) {
+                    isClose = true;
+                } else if (!event.near && isClose) {
+                    isClose = false;
+                    count++;
+                    document.getElementById('counter').textContent = count;
+                }
+            });
+        } else {
+            alert("Seu dispositivo ou navegador não suporta o sensor de proximidade.");
+        }
+    </script>
+</body>
+</html>
