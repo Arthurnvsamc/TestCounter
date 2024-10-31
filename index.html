@@ -57,9 +57,7 @@
         // Função para verificar se o celular está deitado
         function handleOrientation(event) {
             const beta = event.beta; // Inclinação do dispositivo
-
-            // Considera que o celular está deitado se a inclinação beta for próxima de 90 graus
-            isHorizontal = beta > -10 && beta < 10 ;
+            isHorizontal = beta > 80 && beta < 100; // Condição para deitado
         }
 
         async function setupCamera() {
@@ -83,14 +81,14 @@
             return await posenet.load({
                 architecture: 'MobileNetV1',
                 outputStride: 16,
-                inputResolution: { width: 320, height: 240 },
+                inputResolution: { width: 160, height: 120 }, // Reduzindo a resolução para aumentar a velocidade
                 multiplier: 0.5
             });
         }
 
         function detectPoseInRealTime(video, net) {
-            const canvasWidth = 320;
-            const canvasHeight = 240;
+            const canvasWidth = 160; // Resolução reduzida
+            const canvasHeight = 120;
             video.width = canvasWidth;
             video.height = canvasHeight;
             canvas.width = canvasWidth;
@@ -103,33 +101,29 @@
                     context.clearRect(0, 0, canvasWidth, canvasHeight);
                     context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
 
-                    // Desenha os pontos detectados
-                    pose.keypoints.forEach(keypoint => {
-                        if (keypoint.score > 0.6) {
-                            context.beginPath();
-                            context.arc(keypoint.position.x, keypoint.position.y, 5, 0, 2 * Math.PI);
-                            context.fillStyle = "aqua";
-                            context.fill();
-                        }
-                    });
-
-                    // Detecta a posição do nariz para contagem de flexões
+                    // Verifica se o nariz está detectado e faz a contagem
                     const nose = pose.keypoints.find(k => k.part === 'nose');
                     if (nose && nose.score > 0.6) {
                         const noseY = nose.position.y;
 
-                        // Cabeça abaixada e depois levantada
-                        if (noseY < canvasHeight * 0.5 && !isDownPosition) { // Cabeça abaixada
+                        // Detecção de movimento de flexão
+                        if (noseY > canvasHeight * 0.6 && !isDownPosition) { // Cabeça abaixada
                             isDownPosition = true;
-                        } else if (isDownPosition && noseY > canvasHeight * 0.6) { // Cabeça levantada
+                        } else if (isDownPosition && noseY < canvasHeight * 0.5) { // Cabeça levantada
                             count++;
                             counterDisplay.textContent = `Flexões: ${count}`;
                             isDownPosition = false;
                         }
+
+                        // Desenha o ponto do nariz para feedback visual
+                        context.beginPath();
+                        context.arc(nose.position.x, nose.position.y, 5, 0, 2 * Math.PI);
+                        context.fillStyle = "aqua";
+                        context.fill();
                     }
                 }
 
-                requestAnimationFrame(poseDetectionFrame); // Chama a próxima detecção
+                requestAnimationFrame(poseDetectionFrame); // Usar requestAnimationFrame para eficiência
             }
 
             poseDetectionFrame();
