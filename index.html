@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Flexões com Detecção de Orientação</title>
+    <title>Contador de Flexões com PoseNet</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -38,11 +38,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
 </head>
 <body>
-    <h1>Contador de Flexões com Detecção de Orientação</h1>
+    <h1>Contador de Flexões com PoseNet</h1>
     <video id="video" autoplay playsinline></video>
     <canvas id="output"></canvas>
     <div id="counter">Flexões: 0</div>
-    <div id="message">Coloque o celular deitado no chão para iniciar</div>
+    <div id="message">Coloque o celular deitado no chão com a tela para cima.</div>
 
     <script>
         const video = document.getElementById('video');
@@ -52,20 +52,14 @@
         const messageDisplay = document.getElementById('message');
         let count = 0;
         let isDownPosition = false;
-        let isHorizontal = false; // Variável para verificar a orientação
+        let isHorizontal = false;
 
         // Função para verificar se o celular está deitado
         function handleOrientation(event) {
-            const beta = event.beta; // Inclinação entre -180 e 180 graus
+            const beta = event.beta; // Inclinação do dispositivo
 
             // Considera que o celular está deitado se a inclinação beta for próxima de 90 graus
-            if (beta > 80 && beta < 100) {
-                isHorizontal = true;
-                messageDisplay.textContent = "Flexões iniciadas!";
-            } else {
-                isHorizontal = false;
-                messageDisplay.textContent = "Coloque o celular deitado no chão para iniciar";
-            }
+            isHorizontal = beta > 80 && beta < 100;
         }
 
         async function setupCamera() {
@@ -103,10 +97,8 @@
             canvas.height = canvasHeight;
 
             async function poseDetectionFrame() {
-                if (isHorizontal) { // Só detecta se o celular estiver deitado
-                    const pose = await net.estimateSinglePose(video, {
-                        flipHorizontal: true
-                    });
+                if (isHorizontal) { // Verifica se o celular está deitado
+                    const pose = await net.estimateSinglePose(video, { flipHorizontal: true });
 
                     context.clearRect(0, 0, canvasWidth, canvasHeight);
                     context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
@@ -121,16 +113,15 @@
                         }
                     });
 
-                    // Detecta posição de flexão usando a posição do nariz
+                    // Detecta a posição do nariz para contagem de flexões
                     const nose = pose.keypoints.find(k => k.part === 'nose');
-
                     if (nose && nose.score > 0.6) {
                         const noseY = nose.position.y;
 
-                        // Detecta movimento de flexão para baixo e depois para cima
-                        if (noseY > canvasHeight * 0.6 && !isDownPosition) { // Cabeça abaixada
+                        // Cabeça abaixada e depois levantada
+                        if (noseY < canvasHeight * 0.5 && !isDownPosition) { // Cabeça abaixada
                             isDownPosition = true;
-                        } else if (isDownPosition && noseY < canvasHeight * 0.5) { // Cabeça levantada
+                        } else if (isDownPosition && noseY > canvasHeight * 0.6) { // Cabeça levantada
                             count++;
                             counterDisplay.textContent = `Flexões: ${count}`;
                             isDownPosition = false;
@@ -138,9 +129,7 @@
                     }
                 }
 
-                setTimeout(() => {
-                    requestAnimationFrame(poseDetectionFrame);
-                }, 100);
+                requestAnimationFrame(poseDetectionFrame); // Chama a próxima detecção
             }
 
             poseDetectionFrame();
